@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+  body {
+    margin: 0;
+    background: #222;
+    min-width: 960px;
+  }
+
+  rect {
+    fill: none;
+    pointer-events: all;
+  }
+
+  circle {
+    fill: none;
+    stroke-width: 2.5px;
+  }
+</style>
+
+<body>
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+  <script>
+    const socket = new WebSocket('ws://127.0.0.1:8080/ws');
+
+    socket.addEventListener('open', (event) => {
+      socket.send('Hello Server!');
+
+
+      socket.addEventListener('message', (event) => {
+        console.log('Message from server ', event.data);
+        if (event.data === 'Hello Server!') {
+          return;
+        }
+        // parse the data
+        const data = JSON.parse(event.data);
+        // insert the particles
+        setTimeout(() => {
+          handleInsertParticles(data.x, data.y);
+        }, 5000);
+      });
+
+
+
+      var width = Math.max(960, innerWidth),
+        height = Math.max(500, innerHeight);
+
+      var i = 0;
+
+      var svg = d3.select("body").append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+      svg.append("rect")
+        .attr("width", width)
+        .attr("height", height)
+        .on("ontouchstart" in document ? "touchmove" : "mousemove", particle);
+
+        // function which takes x, y locations and inserts particles
+      const handleInsertParticles = (x, y) => {
+        svg.insert("circle", "rect")
+          .attr("cx", x)
+          .attr("cy", y)
+          .attr("r", 1e-6)
+          .style("stroke", d3.hsl((i = (i + 1) % 360), 1, .5))
+          .style("stroke-opacity", 1)
+          .transition()
+          .duration(2000)
+          .ease(Math.sqrt)
+          .attr("r", 100)
+          .style("stroke-opacity", 1e-6)
+          .remove();
+
+      }
+      // alter this function to make it use circular x and y coordinates
+      function particle() {
+        var m = d3.mouse(this);
+        // send to the server
+        socket.send(JSON.stringify({session:"", x: m[0], y: m[1] }));
+
+        // display the particles
+        handleInsertParticles(m[0], m[1]);
+
+        d3.event.preventDefault();
+      }
+    });
+
+
+
+  </script>
