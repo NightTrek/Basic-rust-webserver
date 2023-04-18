@@ -1,49 +1,33 @@
-use actix::prelude::*;
+use actix::{Actor, StreamHandler};
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use serde::{Deserialize, Serialize};
-use serde_json;
 
-// q: "how do i import serde to the cargo.toml?"
-// a: "add serde = { version = "1.0", features = ["derive"] } to the dependencies section of your Cargo.toml"
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Coordinates {
-    x: f32,
-    y: f32,
-}
+/// Define HTTP actor
+struct MyWs;
 
-struct MyWebSocket;
-
-impl Actor for MyWebSocket {
+impl Actor for MyWs {
     type Context = ws::WebsocketContext<Self>;
-
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        println!("WebSocket started");
-    }
 }
 
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
+/// Handler for ws::Message message
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
+            //print out the message and continue listening
             Ok(ws::Message::Text(text)) => {
-                // Deserialize the coordinates sent by the client
-                let coords: Coordinates = serde_json::from_str(&text).unwrap();
+                println!("Server got message: {}", text);
+                ctx.text(text)
+            } 
 
-                // Process the coordinates
-                let new_coords = Coordinates {
-                    x: coords.x + 1.0,
-                    y: coords.y + 1.0,
-                };
-
-                // Send the new coordinates back to the client
-                ctx.text(serde_json::to_string(&new_coords).unwrap());
-            }
+            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
+            Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
             _ => (),
         }
     }
 }
 
 pub async fn ws_handler(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    let resp = ws::start(MyWebSocket {}, &req, stream);
+    let resp = ws::start(MyWs {}, &req, stream);
+    println!("{:?}", resp);
     resp
 }
