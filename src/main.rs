@@ -1,19 +1,26 @@
 
 use actix_web::{web, App,  HttpResponse, HttpServer};
-// mod realTimeHandler;
+use actix_files::NamedFile;
+use std::path::PathBuf;
+mod real_time_handler;
+use real_time_handler::ws_handler;
 
-
-fn index() -> HttpResponse {
-    HttpResponse::Ok().body("Hello, world!")
+async fn index() -> std::io::Result<NamedFile> {
+    println!("[200] GET / index.html");
+    let path: PathBuf = "./static/index.html".parse().unwrap();
+    Ok(NamedFile::open(path)?)
 }
 
-fn session() -> HttpResponse {
+
+async fn session() -> HttpResponse {
+    println!("[200] POST /api/session");
     HttpResponse::Ok().body("Session endpoint")
 }
 
 fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api")
+        .service(web::resource("/ws/").to(ws_handler))
             .service(web::resource("/session").route(web::post().to(session))),
     ).service(
         web::resource("/")
