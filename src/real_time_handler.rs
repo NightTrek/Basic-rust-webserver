@@ -11,8 +11,11 @@ use std::{
 use bytestring::ByteString;
 use serde::{Serialize, Deserialize};
 use serde_json;
-// q: "how to reference the alloc::ByteString type?"
-// a: https://doc.rust-lang.org/alloc/struct.ByteString.html
+
+
+const MAX_HISTORY: usize = 10;
+const MAX_CONNECTIONS: usize = 100;
+
 #[derive(Deserialize)]
 pub struct ClientMessage {
     pub x: i32,
@@ -79,8 +82,8 @@ fn handle_position_update(text: ByteString, session_id: usize, session_storage: 
     let client_message: ClientMessage = serde_json::from_str(&input_string).unwrap_or_default();
     let mut all_sessions = session_storage.lock().unwrap(); // need beetter error handling here TODO ERROR HANDLING URGENT
 
-    // check the length of the positions Vector and if its less than 10, push the new position
-    if all_sessions.sessions[session_id].positions.len() < 10 {
+    // check the length of the positions Vector and if its less than MAX_HISTORY, push the new position
+    if all_sessions.sessions[session_id].positions.len() < MAX_HISTORY {
         all_sessions.sessions[session_id].positions.push(Position { x: client_message.x, y: client_message.y });
     } else {
         // if the length is 10, remove the first element and push the new position
@@ -126,7 +129,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
 pub async fn ws_handler(req: HttpRequest, stream: Payload, data: Data<Arc<Mutex<SessionsStorage>>>) -> Result<HttpResponse, Error> {
     let mut mutable_data = data.lock().unwrap();
     let last_session_id = mutable_data.sessions.len() - 1;
-    if last_session_id >= 100 {
+    if last_session_id >= MAX_CONNECTIONS {
         mutable_data.sessions.remove(0);
     }
     mutable_data.sessions.push(Session { positions: vec![Position { x: 0, y: 0 }] }); // make sure to add a new session whenever we create one.
