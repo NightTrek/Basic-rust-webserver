@@ -27,7 +27,7 @@ async fn main() -> std::io::Result<()> {
         positions: vec![position],
     };
     let sessions_storage = Arc::new(Mutex::new(SessionsStorage {
-        sessions: Mutex::new(vec![session]),
+        sessions: vec![session],
     }));
     // let counter = web::Data::new(AppStateWithCounter {
     //     counter: Mutex::new(0),

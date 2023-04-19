@@ -1,12 +1,18 @@
 
 use actix::prelude::*;
 use actix::{Actor, StreamHandler};
-use actix_web::{web, Error, HttpRequest, HttpResponse};
+use actix_web::{
+    web:: {Data, Payload},
+     Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use std::sync::{Arc,Mutex, MutexGuard};
+use std::{
+    sync::{Arc,Mutex}
+};
+use bytestring::ByteString;
 use serde::{Serialize, Deserialize};
 use serde_json;
-
+// q: "how to reference the alloc::ByteString type?"
+// a: https://doc.rust-lang.org/alloc/struct.ByteString.html
 #[derive(Deserialize)]
 pub struct ClientMessage {
     pub x: i32,
@@ -33,9 +39,18 @@ pub struct Session {
     pub positions: Vec<Position>,
 }
 #[derive(Serialize, Debug)]
-pub struct SessionsStorage {
-    pub sessions: Mutex<Vec<Session>>, // <- Mutex is necessary to mutate safely across threads
+pub struct SessionsStorage { // <- Mutex  around this is necessary to mutate safely across threads
+    pub sessions: Vec<Session>, 
 }
+
+impl Default for SessionsStorage {
+    fn default() -> SessionsStorage {
+        SessionsStorage {
+            sessions: vec![Session { positions: vec![Position { x: 0, y: 0 }] }],
+        }
+    }
+}
+
 
 /// Define HTTP actor
 impl Actor for SessionsStorage {
@@ -43,42 +58,54 @@ impl Actor for SessionsStorage {
 }
 
 struct MyWs {
-    sessions_storage: web::Data<Arc<Mutex<SessionsStorage>>>,
+    sessions_storage: Data<Arc<Mutex<SessionsStorage>>>,
 }
 
 impl Actor for MyWs {
     type Context = ws::WebsocketContext<Self>;
 }
 
+// function which takes a ws::Message::text and mutable Sef::Context and returns a ws::Message::text
+fn handle_position_update(text: ByteString, session_storage: Data<Arc<Mutex<SessionsStorage>>>) -> String {
+    let input_string = String::from(text);
+    // convert the JSON string into a clientMessage struct
+    let client_message: ClientMessage = serde_json::from_str(&input_string).unwrap_or_default();
+    let mut all_sessions = session_storage.lock().unwrap(); // need beetter error handling here TODO ERROR HANDLING URGENT
+
+    // check the length of the positions Vector and if its less than 10, push the new position
+    if all_sessions.sessions[client_message.session_id].positions.len() < 10 {
+        all_sessions.sessions[client_message.session_id].positions.push(Position { x: client_message.x, y: client_message.y });
+    } else {
+        // if the length is 10, remove the first element and push the new position
+        all_sessions.sessions[client_message.session_id].positions.remove(0);
+        all_sessions.sessions[client_message.session_id].positions.push(Position { x: client_message.x, y: client_message.y });
+    }
+    // update the session storage
+    // all_sessions.sessions[client_message.session_id].positions.push(Position { x: client_message.x, y: client_message.y });
+    let sessions_read_only: &SessionsStorage = &*all_sessions;
+    
+    let json_bytes = serde_json::to_string(sessions_read_only).unwrap_or_default();
+    return json_bytes;
+}
+
+
 /// Handler for ws::Message message
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
-            //print out the message and continue listening
+            //handle updating the position Array
             Ok(ws::Message::Text(text)) => {
                 println!("Server got message: {}", text);
-                let inputString = String::from(text);
-                // convert the JSON string into a clientMessage struct
-                let client_message: ClientMessage = serde_json::from_str(&inputString).unwrap_or_default();
-                let allSessions = self.sessions_storage.lock().unwrap();
-                let mut sessions:MutexGuard<Vec<Session>> = allSessions.sessions.lock().unwrap();
-                sessions[client_message.session_id].positions.push(Position { x: client_message.x, y: client_message.y });
-                
-                for session in sessions.iter() {
-                    println!("session: {:?}", session);
-                }
-                // let json_bytes = serde_json::to_vec(&session_copy).unwrap();
-
-                ctx.text("{\"msg\": \"completed update\"}")            } 
-
-            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
-            Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
+                let json_string = handle_position_update(text, self.sessions_storage.clone());
+                ctx.text(json_string);
+             } 
             _ => (),
         }
     }
+    
 }
 
-pub async fn ws_handler(req: HttpRequest, stream: web::Payload, data: web::Data<Arc<Mutex<SessionsStorage>>>) -> Result<HttpResponse, Error> {
+pub async fn ws_handler(req: HttpRequest, stream: Payload, data: Data<Arc<Mutex<SessionsStorage>>>) -> Result<HttpResponse, Error> {
     let resp = ws::start(MyWs {sessions_storage: data}, &req, stream);
     println!("{:?}", resp);
     resp
