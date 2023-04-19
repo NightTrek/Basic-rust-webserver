@@ -76,7 +76,7 @@
       function particle() {
         var m = d3.mouse(this);
         // send to the server
-        socket.send(JSON.stringify({session:"", x: m[0], y: m[1] }));
+        socket.send(JSON.stringify({session_id:0, x: m[0], y: m[1] }));
 
         // display the particles
         handleInsertParticles(m[0], m[1]);

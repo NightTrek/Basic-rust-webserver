@@ -17,6 +17,8 @@ async fn index() -> std::io::Result<NamedFile> {
 
 
 
+
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("Starting server at http://127.0.0.1:8080");
@@ -27,13 +29,14 @@ async fn main() -> std::io::Result<()> {
     let sessions_storage = Arc::new(Mutex::new(SessionsStorage {
         sessions: Mutex::new(vec![session]),
     }));
-
-     // Note: web::Data created _outside_ HttpServer::new closure
-
+    // let counter = web::Data::new(AppStateWithCounter {
+    //     counter: Mutex::new(0),
+    // });
 
 HttpServer::new(move || { 
     App::new()
-        .app_data(Arc::clone(&sessions_storage)) // <- register the created data
+        // .app_data(Arc::clone(&sessions_storage)) // <- register the created data
+        .app_data(web::Data::new(Arc::clone(&sessions_storage))) // <- register the created data
         .route("/ws", web::get().to(ws_handler)) // websocket handler with access to state
 
         // static file routing
