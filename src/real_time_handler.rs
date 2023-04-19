@@ -108,6 +108,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
             //handle updating the position Array
             Ok(ws::Message::Text(text)) => {
                 println!("Server got message: {}", text);
+                println!("session_id: {}", self.session_id);
                 if text == "Hello Server!" {
                     handle_session_start(self.session_id);
                     ctx.text("{session_id: {}");

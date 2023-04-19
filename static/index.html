@@ -34,10 +34,10 @@
         }
         // parse the data
         const data = JSON.parse(event.data);
-        // insert the particles
-        setTimeout(() => {
-          handleInsertParticles(data.x, data.y);
-        }, 5000);
+        for (let key in data[0]) {
+          let position = data[0][0];
+          handleInsertParticles(position.x, position.y);
+        }
       });
 
 
